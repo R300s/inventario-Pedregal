@@ -388,9 +388,10 @@ const EQUIPMENT_TYPES = [
   { value:'PC de Escritorio',      icon:'🖥️' },
   { value:'Bocina',                icon:'🔊' },
   { value:'Impresora',             icon:'🖨️' },
-  { value:'Pantalla PC',           icon:'🖵' },
   { value:'Cámara',                icon:'📷' },
   { value:'Pantalla Interactiva',  icon:'🖼️' },
+  { value:'DVR',                   icon:'📼' },
+  { value:'Switch',                icon:'🔌' },
 ];
 
 const AREAS = [
@@ -633,7 +634,31 @@ function renderAll(){
   const area = AREAS.find(a=>a.id===currentArea);
   document.getElementById('pageTitle').textContent = area.name;
   document.getElementById('pageSubtitle').textContent = 'Listado y estatus de equipos · ' + (DATA[area.id]||[]).length + ' registrados';
+  host.appendChild(buildAreaTypesPanel(area));
   host.appendChild(buildPanel(area));
+}
+
+function buildAreaTypesPanel(area){
+  const rows = DATA[area.id] || [];
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.innerHTML = `
+    <div class="panel-head">
+      <h3>🧮 Total por tipo de equipo</h3>
+    </div>
+    <div class="types-grid">
+      ${EQUIPMENT_TYPES.map(t=>{
+        const c = rows.filter(r=>r['Tipo de Equipo']===t.value).length;
+        return `
+          <div class="type-card">
+            <div class="type-ic">${t.icon}</div>
+            <div class="type-num">${c}</div>
+            <div class="type-lbl">${t.value}</div>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+  return panel;
 }
 
 /* ---------------------------------------------------------
