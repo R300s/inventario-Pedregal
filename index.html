@@ -380,7 +380,7 @@ const LOGO_B64 = "iVBORw0KGgoAAAANSUhEUgAABWEAAAMACAYAAABFEaWDAAAACXBIWXMAAAsTAA
 
 const COLS_DOCENTE = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Aula','Asignado A','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
 const COLS_BASE = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Aula','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
-const COLS_OFICINA = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Oficina','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
+const COLS_OFICINA = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Oficina','Asignado A','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
 
 const EQUIPMENT_TYPES = [
   { value:'TV',                    icon:'📺' },
@@ -388,10 +388,9 @@ const EQUIPMENT_TYPES = [
   { value:'PC de Escritorio',      icon:'🖥️' },
   { value:'Bocina',                icon:'🔊' },
   { value:'Impresora',             icon:'🖨️' },
+  { value:'Pantalla PC',           icon:'🖵' },
   { value:'Cámara',                icon:'📷' },
   { value:'Pantalla Interactiva',  icon:'🖼️' },
-  { value:'DVR',                   icon:'📼' },
-  { value:'Switch',                icon:'🔌' },
 ];
 
 const AREAS = [
@@ -634,31 +633,7 @@ function renderAll(){
   const area = AREAS.find(a=>a.id===currentArea);
   document.getElementById('pageTitle').textContent = area.name;
   document.getElementById('pageSubtitle').textContent = 'Listado y estatus de equipos · ' + (DATA[area.id]||[]).length + ' registrados';
-  host.appendChild(buildAreaTypesPanel(area));
   host.appendChild(buildPanel(area));
-}
-
-function buildAreaTypesPanel(area){
-  const rows = DATA[area.id] || [];
-  const panel = document.createElement('div');
-  panel.className = 'panel';
-  panel.innerHTML = `
-    <div class="panel-head">
-      <h3>🧮 Total por tipo de equipo</h3>
-    </div>
-    <div class="types-grid">
-      ${EQUIPMENT_TYPES.map(t=>{
-        const c = rows.filter(r=>r['Tipo de Equipo']===t.value).length;
-        return `
-          <div class="type-card">
-            <div class="type-ic">${t.icon}</div>
-            <div class="type-num">${c}</div>
-            <div class="type-lbl">${t.value}</div>
-          </div>`;
-      }).join('')}
-    </div>
-  `;
-  return panel;
 }
 
 /* ---------------------------------------------------------
@@ -851,7 +826,7 @@ function buildForm(area){
       return `<div class="field"><label>${c}</label><input type="text" data-col="${c}" placeholder="Ej. 01"></div>`;
     }
     if(c==='Asignado A'){
-      return `<div class="field"><label>${c}</label><input type="text" data-col="${c}" placeholder="Nombre del docente"></div>`;
+      return `<div class="field"><label>${c}</label><input type="text" data-col="${c}" placeholder="${area.columns.includes('Oficina') ? 'Nombre del responsable' : 'Nombre del docente'}"></div>`;
     }
     if(c==='¿Aplica Responsiva?'){
       return `<div class="field"><label>${c}</label><select data-col="${c}"><option value="No">No</option><option value="Sí">Sí</option></select></div>`;
