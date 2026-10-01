@@ -222,6 +222,24 @@
   }
   .icon-btn:hover{ background:rgba(239,68,68,0.12); color:#b91c1c; }
 
+  .filter-bar{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+    padding:14px 22px; border-bottom:1px solid rgba(255,255,255,0.35);
+    background:rgba(255,255,255,0.12);
+  }
+  .filter-q{
+    flex:1 1 220px; min-width:180px; padding:9px 12px; border-radius:10px;
+    border:1px solid rgba(13,36,54,0.15); background:rgba(255,255,255,0.7);
+    color:var(--ink); font-family:'Inter',sans-serif; font-size:13.5px;
+  }
+  .filter-q:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .filter-select{
+    padding:9px 12px; border-radius:10px; border:1px solid rgba(13,36,54,0.15);
+    background:rgba(255,255,255,0.7); color:var(--ink); font-family:'Inter',sans-serif;
+    font-size:13.5px; cursor:pointer;
+  }
+  .filter-clear{ font-size:12.5px; padding:8px 12px; }
+
   .empty{ padding:46px 20px; text-align:center; color:var(--ink-soft); }
   .empty .big{ font-size:32px; margin-bottom:8px; }
 
@@ -381,6 +399,7 @@ const LOGO_B64 = "iVBORw0KGgoAAAANSUhEUgAABWEAAAMACAYAAABFEaWDAAAACXBIWXMAAAsTAA
 const COLS_DOCENTE = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Aula','Asignado A','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
 const COLS_BASE = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Aula','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
 const COLS_OFICINA = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Oficina','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
+const COLS_OFICINA_DOCENTE = ['Numero','Nombre Equipo','Tipo de Equipo','Descripcion del Equipo','Numero de Serie','Oficina','Asignado A','Fecha Mantenimiento','Estatus del Equipo','¿Aplica Responsiva?','Comentarios'];
 
 const EQUIPMENT_TYPES = [
   { value:'TV',                    icon:'📺' },
@@ -394,18 +413,19 @@ const EQUIPMENT_TYPES = [
   { value:'Switch',                icon:'🔌' },
   { value:'Teléfonos',             icon:'📞' },
   { value:'Radios',                icon:'📻' },
+  { value:'Proyector',             icon:'📽️' },
 ];
 
 const AREAS = [
   { id:'preescolar',      name:'Área Preescolar',      icon:'🎨', columns:COLS_DOCENTE },
   { id:'primaria',        name:'Área Primaria',        icon:'📘', columns:COLS_DOCENTE },
-  { id:'bodega_primaria', name:'Bodega Primaria',      icon:'📦', columns:COLS_BASE, parent:'primaria' },
+  { id:'bodega_primaria', name:'Bodega Primaria',      icon:'📦', columns:COLS_DOCENTE, parent:'primaria' },
   { id:'secundaria',      name:'Área Secundaria',      icon:'🧪', columns:COLS_DOCENTE },
   { id:'bachillerato',    name:'Área Bachillerato',    icon:'🎓', columns:COLS_DOCENTE },
-  { id:'rectoria',        name:'Área Rectoría',        icon:'🏛️', columns:COLS_OFICINA },
-  { id:'ti',              name:'TI',                   icon:'🔧', columns:COLS_OFICINA, parent:'rectoria' },
-  { id:'auditorio',       name:'Área Auditorio',       icon:'🎭', columns:COLS_BASE },
-  { id:'gym',             name:'Área Gym',             icon:'🏋️', columns:COLS_BASE },
+  { id:'rectoria',        name:'Área Rectoría',        icon:'🏛️', columns:COLS_OFICINA_DOCENTE },
+  { id:'ti',              name:'TI',                   icon:'🔧', columns:COLS_OFICINA_DOCENTE, parent:'rectoria' },
+  { id:'auditorio',       name:'Área Auditorio',       icon:'🎭', columns:COLS_DOCENTE },
+  { id:'gym',             name:'Área Gym',             icon:'🏋️', columns:COLS_DOCENTE },
   { id:'archivo_muerto',  name:'Área Archivo Muerto',  icon:'🗄️', columns:COLS_BASE },
 ];
 
@@ -419,6 +439,7 @@ const STATUS_OPTIONS = [
 const DASHBOARD_ID = 'dashboard';
 
 let DATA = {};          // { areaId: [ {col:val,...}, ... ] }
+let FILTERS = {};       // { areaId: { q:'', tipo:'', estatus:'' } }
 let currentArea = DASHBOARD_ID;
 let syncStatus = 'checking'; // 'checking' | 'ok' | 'offline' | 'unconfigured'
 
@@ -760,8 +781,41 @@ function buildDashboard(){
   return frag;
 }
 
+function getFilter(areaId){
+  return FILTERS[areaId] || (FILTERS[areaId] = { q:'', tipo:'', estatus:'' });
+}
+
+function applyFilters(area, rows){
+  const f = getFilter(area.id);
+  let out = rows;
+  if(f.tipo) out = out.filter(r=> r['Tipo de Equipo'] === f.tipo);
+  if(f.estatus) out = out.filter(r=> r['Estatus del Equipo'] === f.estatus);
+  if(f.q){
+    const q = f.q.toLowerCase();
+    out = out.filter(r=> Object.values(r).some(v=> String(v||'').toLowerCase().includes(q)));
+  }
+  return out;
+}
+
+function buildFilterBar(area, rows){
+  const f = getFilter(area.id);
+  const typeOpts = '<option value="">Todos los tipos</option>' +
+    EQUIPMENT_TYPES.map(t=>`<option value="${t.value}" ${f.tipo===t.value?'selected':''}>${t.icon} ${t.value}</option>`).join('');
+  const statusOpts = '<option value="">Todos los estatus</option>' +
+    STATUS_OPTIONS.map(o=>`<option value="${o.value}" ${f.estatus===o.value?'selected':''}>${o.value}</option>`).join('');
+  return `
+    <div class="filter-bar" id="filterBar-${area.id}">
+      <input type="text" class="filter-q" id="filterQ-${area.id}" placeholder="🔎 Buscar equipo, serie, asignado..." value="${(f.q||'').replace(/"/g,'&quot;')}">
+      <select class="filter-select" id="filterTipo-${area.id}">${typeOpts}</select>
+      <select class="filter-select" id="filterEstatus-${area.id}">${statusOpts}</select>
+      ${(f.q||f.tipo||f.estatus) ? `<button class="btn btn-ghost filter-clear" id="filterClear-${area.id}">✕ Limpiar</button>` : ''}
+    </div>
+  `;
+}
+
 function buildPanel(area){
   const rows = DATA[area.id] || [];
+  const filtered = applyFilters(area, rows);
   const wrap = document.createElement('div');
   wrap.className = 'panel';
 
@@ -775,8 +829,9 @@ function buildPanel(area){
         <button class="btn btn-primary" id="addBtn-${area.id}">＋ Agregar equipo</button>
       </div>
     </div>
+    ${buildFilterBar(area, rows)}
     <div class="table-wrap">
-      ${rows.length ? buildTable(area, rows) : buildEmpty()}
+      ${rows.length ? (filtered.length ? buildTable(area, filtered) : buildNoMatch()) : buildEmpty()}
     </div>
     <div class="add-row-form" id="form-${area.id}">
       ${buildForm(area)}
@@ -798,6 +853,15 @@ function buildPanel(area){
     wrap.querySelectorAll('.edit-row').forEach(btn=>{
       btn.onclick = ()=>openEditForm(area, parseInt(btn.dataset.idx,10));
     });
+    const qInput = document.getElementById(`filterQ-${area.id}`);
+    if(qInput) qInput.oninput = ()=>{ getFilter(area.id).q = qInput.value; renderAll(); };
+    const tipoSel = document.getElementById(`filterTipo-${area.id}`);
+    if(tipoSel) tipoSel.onchange = ()=>{ getFilter(area.id).tipo = tipoSel.value; renderAll(); };
+    const estatusSel = document.getElementById(`filterEstatus-${area.id}`);
+    if(estatusSel) estatusSel.onchange = ()=>{ getFilter(area.id).estatus = estatusSel.value; renderAll(); };
+    const clearBtn = document.getElementById(`filterClear-${area.id}`);
+    if(clearBtn) clearBtn.onclick = ()=>{ FILTERS[area.id] = { q:'', tipo:'', estatus:'' }; renderAll(); };
+    if(qInput) setTimeout(()=>{ qInput.focus(); qInput.selectionStart = qInput.selectionEnd = qInput.value.length; }, 0);
   },0);
 
   return wrap;
@@ -805,6 +869,10 @@ function buildPanel(area){
 
 function buildEmpty(){
   return `<div class="empty"><div class="big">🗂️</div>Aún no hay equipos registrados en esta área.<br>Usa "Agregar equipo" para comenzar.</div>`;
+}
+
+function buildNoMatch(){
+  return `<div class="empty"><div class="big">🔎</div>Ningún equipo coincide con el filtro.<br>Ajusta o limpia la búsqueda.</div>`;
 }
 
 function buildTable(area, rows){
