@@ -326,6 +326,47 @@
   .glass-toggle.on .knob{ left:24px; }
   .glass-toggle .gt-label{ font-size:13.5px; font-weight:600; color:var(--ink); }
 
+  .modal-overlay{
+    display:none; position:fixed; inset:0; z-index:60;
+    background:rgba(13,36,54,0.35);
+    backdrop-filter: blur(4px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    width:100%; max-width:380px;
+    background:rgba(255,255,255,0.55);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border:1px solid rgba(255,255,255,0.7);
+    border-radius:28px;
+    padding:24px 22px 20px;
+    box-shadow:0 30px 70px -20px rgba(13,36,54,0.5), inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .modal-box h4{ margin:0 0 4px; font-family:'Space Grotesk',sans-serif; font-size:17px; }
+  .modal-sub{ margin:0 0 16px; font-size:12.5px; color:var(--ink-soft); }
+  .modal-list{
+    display:flex; flex-direction:column; gap:8px;
+    max-height:320px; overflow-y:auto; margin-bottom:16px;
+  }
+  .modal-option{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 14px; border-radius:16px; cursor:pointer;
+    background:rgba(255,255,255,0.45); border:1px solid rgba(255,255,255,0.6);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+    font-size:13.5px; font-weight:600; color:var(--ink);
+    transition: background .15s ease, transform .12s ease;
+  }
+  .modal-option:hover{ background:rgba(255,255,255,0.72); transform:translateX(2px); }
+  .modal-option .ic{
+    width:30px; height:30px; border-radius:999px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:14px;
+    background:rgba(255,255,255,0.6);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  }
+  .modal-actions{ display:flex; justify-content:flex-end; }
+  .icon-btn.move-row:hover{ background:rgba(108,140,255,0.18); color:#3849b8; }
+
   .toast{
     position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
     background:rgba(13,36,54,0.92); color:#fff; padding:12px 22px; border-radius:999px;
@@ -462,6 +503,17 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="moveModalOverlay">
+  <div class="modal-box" id="moveModalBox">
+    <h4>Mover equipo a otra sección</h4>
+    <p class="modal-sub" id="moveModalSub"></p>
+    <div class="modal-list" id="moveModalList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="moveModalCancel">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ---------------------------------------------------------
@@ -926,6 +978,9 @@ function buildPanel(area){
     wrap.querySelectorAll('.edit-row').forEach(btn=>{
       btn.onclick = ()=>openEditForm(area, parseInt(btn.dataset.idx,10));
     });
+    wrap.querySelectorAll('.move-row').forEach(btn=>{
+      btn.onclick = ()=>openMoveModal(area, parseInt(btn.dataset.idx,10));
+    });
     const qInput = document.getElementById(`filterQ-${area.id}`);
     if(qInput) qInput.oninput = ()=>{ getFilter(area.id).q = qInput.value; renderAll(); };
     const tipoSel = document.getElementById(`filterTipo-${area.id}`);
@@ -950,7 +1005,9 @@ function buildNoMatch(){
 
 function buildTable(area, rows){
   const th = area.columns.map(c=>`<th>${c}</th>`).join('') + '<th></th>';
-  const tr = rows.map((r,idx)=>{
+  const fullList = DATA[area.id] || [];
+  const tr = rows.map((r)=>{
+    const realIdx = fullList.indexOf(r); // índice real en DATA[area.id], válido aunque "rows" esté filtrado
     const tds = area.columns.map(c=>{
       if(c==='Estatus del Equipo') return `<td>${statusBadge(r[c])}</td>`;
       if(c==='Tipo de Equipo') return `<td>${equipoTag(r[c])}</td>`;
@@ -961,8 +1018,9 @@ function buildTable(area, rows){
       return `<td>${r[c] ?? ''}</td>`;
     }).join('');
     return `<tr>${tds}<td class="col-actions">
-      <button class="icon-btn edit-row" data-idx="${idx}" title="Editar">✏️</button>
-      <button class="icon-btn del-row" data-idx="${idx}" title="Eliminar">🗑️</button>
+      <button class="icon-btn edit-row" data-idx="${realIdx}" title="Editar">✏️</button>
+      <button class="icon-btn move-row" data-idx="${realIdx}" title="Mover a otra sección">📂</button>
+      <button class="icon-btn del-row" data-idx="${realIdx}" title="Eliminar">🗑️</button>
     </td></tr>`;
   }).join('');
   return `<table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
@@ -1132,6 +1190,57 @@ async function submitForm(area){
     }catch(e){
       showToast('❌ No se pudo guardar en Google Sheets. Intenta de nuevo.');
     }
+  }
+}
+
+/* ---------------------------------------------------------
+   MOVER EQUIPO A OTRA SECCIÓN (sin borrarlo ni reescribirlo)
+--------------------------------------------------------- */
+function openMoveModal(area, idx){
+  const record = DATA[area.id][idx];
+  if(!record) return;
+
+  const overlay = document.getElementById('moveModalOverlay');
+  const sub = document.getElementById('moveModalSub');
+  const list = document.getElementById('moveModalList');
+
+  sub.textContent = `"${record['Nombre Equipo'] || 'Este equipo'}" se moverá tal cual, conservando sus datos.`;
+
+  list.innerHTML = AREAS.filter(a=> a.id !== area.id).map(a=>
+    `<div class="modal-option" data-target="${a.id}"><span class="ic">${a.icon}</span>${a.name}</div>`
+  ).join('');
+
+  list.querySelectorAll('.modal-option').forEach(opt=>{
+    opt.onclick = ()=> moveRecordToArea(area, idx, opt.dataset.target);
+  });
+
+  overlay.classList.add('show');
+
+  const cancelBtn = document.getElementById('moveModalCancel');
+  cancelBtn.onclick = closeMoveModal;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeMoveModal(); };
+}
+
+function closeMoveModal(){
+  document.getElementById('moveModalOverlay').classList.remove('show');
+}
+
+async function moveRecordToArea(fromArea, idx, toAreaId){
+  const record = DATA[fromArea.id][idx];
+  if(!record) return;
+  const toArea = AREAS.find(a=> a.id === toAreaId);
+  if(!toArea) return;
+
+  try{
+    await updateRecordRemote(toArea, record); // misma fila, solo cambia su Área: no se borra ni se vuelve a crear
+    DATA[fromArea.id].splice(idx,1);
+    DATA[toArea.id] = DATA[toArea.id] || [];
+    DATA[toArea.id].unshift(record);
+    closeMoveModal();
+    renderAll();
+    showToast(`📂 Equipo movido a ${toArea.name}.`);
+  }catch(e){
+    showToast('❌ No se pudo mover el equipo. Intenta de nuevo.');
   }
 }
 
